@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useRef, memo } from 'react';
 import {
   View,
   Text,
@@ -16,6 +16,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { stockService } from '@/services/stockService';
 import { StockItem, StockStatus, getStockStatus, STOCK_STATUS_COLORS, CreateStockItemPayload } from '@/types/stock';
+import { debounce, throttle } from '@/utils/performance';
+import { getOptimizedFlatListProps, LARGE_LIST_CONFIG } from '@/utils/optimizedList';
 
 type FilterType = StockStatus | null;
 
@@ -34,6 +36,34 @@ export default function StockScreen() {
     unit: 'pieces',
     category: '',
   });
+  const [localSearchQuery, setLocalSearchQuery] = useState('');
+  const mutationLockRef = useRef<Set<string>>(new Set());
+
+  const debouncedSearch = useMemo(
+    () => debounce((query: string) => setSearchQuery(query), 300),
+    []
+  );
+
+  const handleSearchChange = useCallback((text: string) => {
+    setLocalSearchQuery(text);
+    debouncedSearch(text);
+  }, [debouncedSearch]);
+
+  const throttledQuantityChange = useMemo(
+    () => throttle((id: string, isIncrement: boolean) => {
+      const lockKey = `qty_${id}`;
+      if (mutationLockRef.current.has(lockKey)) return;
+      mutationLockRef.current.add(lockKey);
+      
+      const mutation = isIncrement ? incrementMutation : decrementMutation;
+      mutation.mutate(id, {
+        onSettled: () => {
+          setTimeout(() => mutationLockRef.current.delete(lockKey), 500);
+        }
+      });
+    }, 300),
+    [incrementMutation, decrementMutation]
+  );
 
   const canAddStock = hasPermission('add_stock');
   const canAdjustQuantity = hasPermission('adjust_stock_quantity');
@@ -105,13 +135,13 @@ export default function StockScreen() {
 
   const handleIncrement = useCallback((id: string) => {
     console.log('[StockScreen] Incrementing quantity for:', id);
-    incrementMutation.mutate(id);
-  }, [incrementMutation]);
+    throttledQuantityChange(id, true);
+  }, [throttledQuantityChange]);
 
   const handleDecrement = useCallback((id: string) => {
     console.log('[StockScreen] Decrementing quantity for:', id);
-    decrementMutation.mutate(id);
-  }, [decrementMutation]);
+    throttledQuantityChange(id, false);
+  }, [throttledQuantityChange]);
 
   const handleAddItem = useCallback(() => {
     if (!newItem.name.trim()) {
@@ -218,8 +248,8 @@ export default function StockScreen() {
             style={[styles.searchInput, isRTL && styles.inputRTL]}
             placeholder={t('stock.searchProducts')}
             placeholderTextColor="#9CA3AF"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            value={localSearchQuery}
+            onChangeText={handleSearchChange}
             textAlign={isRTL ? 'right' : 'left'}
           />
         </View>

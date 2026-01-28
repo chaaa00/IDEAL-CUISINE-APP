@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ import { PermissionGate } from '@/components/PermissionGate';
 import ProjectCard from '@/components/ProjectCard';
 import ProjectFormModal from '@/components/ProjectFormModal';
 import { Project, ProjectStatus, PROJECT_STATUS_CONFIG, CreateProjectPayload, UpdateProjectPayload } from '@/types/project';
+import { debounce } from '@/utils/performance';
+import { getOptimizedFlatListProps, LARGE_LIST_CONFIG } from '@/utils/optimizedList';
 
 type FilterStatus = ProjectStatus | 'all';
 
@@ -41,8 +43,25 @@ export default function ProjectsScreen() {
 
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [localSearchQuery, setLocalSearchQuery] = useState('');
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const refreshLockRef = useRef(false);
+
+  const debouncedSearch = useMemo(
+    () => debounce((query: string) => setSearchQuery(query), 300),
+    [setSearchQuery]
+  );
+
+  const handleSearchChange = useCallback((text: string) => {
+    setLocalSearchQuery(text);
+    debouncedSearch(text);
+  }, [debouncedSearch]);
+
+  const optimizedListProps = useMemo(
+    () => getOptimizedFlatListProps<Project>(LARGE_LIST_CONFIG),
+    []
+  );
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -52,26 +71,31 @@ export default function ProjectsScreen() {
     }).start();
   }, []);
 
-  const handleRefresh = async () => {
+  const handleRefresh = useCallback(async () => {
+    if (refreshLockRef.current) return;
+    refreshLockRef.current = true;
     setIsRefreshing(true);
     refetchProjects();
-    setTimeout(() => setIsRefreshing(false), 1000);
-  };
+    setTimeout(() => {
+      setIsRefreshing(false);
+      refreshLockRef.current = false;
+    }, 1000);
+  }, [refetchProjects]);
 
-  const handleFilterPress = (status: FilterStatus) => {
+  const handleFilterPress = useCallback((status: FilterStatus) => {
     setStatusFilter(status);
-  };
+  }, [setStatusFilter]);
 
-  const handleProjectPress = (project: Project) => {
+  const handleProjectPress = useCallback((project: Project) => {
     router.push({
       pathname: '/(app)/project-details',
       params: { id: project.id },
     });
-  };
+  }, [router]);
 
-  const handleCreateProject = async (payload: CreateProjectPayload | UpdateProjectPayload) => {
+  const handleCreateProject = useCallback(async (payload: CreateProjectPayload | UpdateProjectPayload) => {
     await createProject(payload as CreateProjectPayload);
-  };
+  }, [createProject]);
 
   const renderFilterButton = (status: FilterStatus, label: string, color: string, count: number) => {
     const isActive = statusFilter === status;
@@ -110,7 +134,9 @@ export default function ProjectsScreen() {
     </View>
   );
 
-  const renderProject = ({ item, index }: { item: Project; index: number }) => (
+  const keyExtractor = useCallback((item: Project) => item.id, []);
+
+  const renderProject = useCallback(({ item, index }: { item: Project; index: number }) => (
     <Animated.View
       style={{
         opacity: fadeAnim,
@@ -130,7 +156,7 @@ export default function ProjectsScreen() {
         testID={`project-card-${index}`}
       />
     </Animated.View>
-  );
+  ), [fadeAnim, handleProjectPress]);
 
   return (
     <View style={styles.container}>
@@ -141,12 +167,12 @@ export default function ProjectsScreen() {
             style={[styles.searchInput, isRTL && styles.inputRTL]}
             placeholder={t('projects.searchProjects')}
             placeholderTextColor="#999"
-            value={searchQuery}
-            onChangeText={setSearchQuery}
+            value={localSearchQuery}
+            onChangeText={handleSearchChange}
             textAlign={isRTL ? 'right' : 'left'}
           />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
+          {localSearchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => { setLocalSearchQuery(''); setSearchQuery(''); }}>
               <X size={20} color="#888" />
             </TouchableOpacity>
           )}
@@ -169,7 +195,7 @@ export default function ProjectsScreen() {
         <FlatList
           data={filteredProjects}
           renderItem={renderProject}
-          keyExtractor={(item) => item.id}
+          keyExtractor={keyExtractor}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={renderEmptyState}
@@ -180,6 +206,7 @@ export default function ProjectsScreen() {
               tintColor="#000"
             />
           }
+          {...optimizedListProps}
         />
       )}
 
