@@ -39,6 +39,29 @@ export default function StockScreen() {
   const [localSearchQuery, setLocalSearchQuery] = useState('');
   const mutationLockRef = useRef<Set<string>>(new Set());
 
+  const canAddStock = hasPermission('add_stock');
+  const canAdjustQuantity = hasPermission('adjust_stock_quantity');
+  const canDeleteStock = hasPermission('delete_stock');
+
+  const { data: stockItems = [], isLoading, refetch } = useQuery({
+    queryKey: ['stock'],
+    queryFn: () => stockService.getAllItems(),
+  });
+
+  const incrementMutation = useMutation({
+    mutationFn: (id: string) => stockService.incrementQuantity(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stock'] });
+    },
+  });
+
+  const decrementMutation = useMutation({
+    mutationFn: (id: string) => stockService.decrementQuantity(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['stock'] });
+    },
+  });
+
   const debouncedSearch = useMemo(
     () => debounce((query: string) => setSearchQuery(query), 300),
     []
@@ -64,29 +87,6 @@ export default function StockScreen() {
     }, 300),
     [incrementMutation, decrementMutation]
   );
-
-  const canAddStock = hasPermission('add_stock');
-  const canAdjustQuantity = hasPermission('adjust_stock_quantity');
-  const canDeleteStock = hasPermission('delete_stock');
-
-  const { data: stockItems = [], isLoading, refetch } = useQuery({
-    queryKey: ['stock'],
-    queryFn: () => stockService.getAllItems(),
-  });
-
-  const incrementMutation = useMutation({
-    mutationFn: (id: string) => stockService.incrementQuantity(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stock'] });
-    },
-  });
-
-  const decrementMutation = useMutation({
-    mutationFn: (id: string) => stockService.decrementQuantity(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['stock'] });
-    },
-  });
 
   const createMutation = useMutation({
     mutationFn: (payload: CreateStockItemPayload) => stockService.createItem(payload),

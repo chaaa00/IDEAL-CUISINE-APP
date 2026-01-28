@@ -52,7 +52,7 @@ function OptimizedListInner<T>({
 
   const getItemLayout = useMemo(() => {
     if (!itemHeight) return undefined;
-    return (_data: T[] | null | undefined, index: number) => ({
+    return (_data: ArrayLike<T> | null | undefined, index: number) => ({
       length: itemHeight,
       offset: itemHeight * index,
       index,

@@ -2,7 +2,7 @@ export function debounce<T extends (...args: any[]) => any>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
-  let timeoutId: NodeJS.Timeout | null = null;
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
   return (...args: Parameters<T>) => {
     if (timeoutId) {
@@ -196,7 +196,7 @@ export class RequestDeduplicator {
 
 export class RequestBatcher<T, R> {
   private queue: Array<{ item: T; resolve: (value: R) => void; reject: (error: any) => void }> = [];
-  private timeoutId: NodeJS.Timeout | null = null;
+  private timeoutId: ReturnType<typeof setTimeout> | null = null;
   private batchSize: number;
   private delay: number;
   private batchFn: (items: T[]) => Promise<R[]>;

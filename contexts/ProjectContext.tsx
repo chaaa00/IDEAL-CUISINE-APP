@@ -46,7 +46,7 @@ export const [ProjectProvider, useProjects] = createContextHook<ProjectContextVa
 
   const createMutation = useMutation({
     mutationFn: async (payload: CreateProjectPayload) => {
-      const lockKey = `create_${payload.name}_${payload.eventDate}`;
+      const lockKey = `create_${payload.name}_${payload.date}`;
       if (mutationLockRef.current.has(lockKey)) {
         console.log('[ProjectContext] Duplicate create request blocked');
         throw new Error('Operation already in progress');
