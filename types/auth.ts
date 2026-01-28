@@ -17,7 +17,7 @@ export interface Permission {
   category: PermissionCategory;
 }
 
-export type PermissionCategory = 'pages' | 'actions' | 'data';
+export type PermissionCategory = 'pages' | 'actions' | 'data' | 'messaging';
 
 export interface PermissionDefinition {
   id: string;
@@ -66,6 +66,13 @@ export const ALL_PERMISSIONS: PermissionDefinition[] = [
   { id: 'export_data', name: 'Export Data', description: 'Ability to export data', category: 'data' },
   { id: 'import_data', name: 'Import Data', description: 'Ability to import data', category: 'data' },
   { id: 'view_sensitive_data', name: 'View Sensitive Data', description: 'Access to sensitive information', category: 'data' },
+  
+  { id: 'view_messages', name: 'View Messages', description: 'Access to view messages', category: 'messaging' },
+  { id: 'send_message', name: 'Send Messages', description: 'Ability to send text messages', category: 'messaging' },
+  { id: 'send_files', name: 'Send Files', description: 'Ability to send file attachments', category: 'messaging' },
+  { id: 'view_files', name: 'View Files', description: 'Ability to view and download file attachments', category: 'messaging' },
+  { id: 'delete_files', name: 'Delete Files', description: 'Ability to delete file attachments', category: 'messaging' },
+  { id: 'delete_messages', name: 'Delete Messages', description: 'Ability to delete messages', category: 'messaging' },
 ];
 
 export interface CreateUserPayload {

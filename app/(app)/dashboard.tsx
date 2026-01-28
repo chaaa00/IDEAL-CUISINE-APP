@@ -31,6 +31,7 @@ import {
   AlertCircle,
   Calendar,
   Warehouse,
+  MessageCircle,
 } from 'lucide-react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
@@ -582,6 +583,17 @@ export default function DashboardScreen() {
               description={t('menu.manageStock')}
               onPress={() => router.push('/(app)/stock')}
               delay={350}
+              isRTL={isRTL}
+            />
+          </PermissionGate>
+
+          <PermissionGate permission="view_messages">
+            <MenuItem
+              icon={<MessageCircle size={24} color="#000" />}
+              title={t('menu.messages')}
+              description={t('menu.viewMessages')}
+              onPress={() => router.push('/(app)/messages')}
+              delay={400}
               isRTL={isRTL}
             />
           </PermissionGate>

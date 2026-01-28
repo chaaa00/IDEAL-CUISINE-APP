@@ -78,6 +78,13 @@ export default function AppLayout() {
           headerRight: () => <NotificationBell />,
         }} 
       />
+      <Stack.Screen 
+        name="messages" 
+        options={{ 
+          title: t('messaging.title'),
+          headerRight: () => <NotificationBell />,
+        }} 
+      />
     </Stack>
   );
 }
