@@ -1,4 +1,4 @@
-import { apiAdapter } from './api/adapter';
+import databaseAdapter from './api/adapter';
 import {
   Message,
   MessageThread,
@@ -17,9 +17,12 @@ export const messageRepository = {
     console.log('[MessageRepository] Getting messages with params:', params);
     
     try {
-      const response = await apiAdapter.get<Message[]>('/messages', { params });
-      return response;
-    } catch (error) {
+      const response = await databaseAdapter.get<Message[]>('/messages', params);
+      if (response.error || !response.data) {
+        throw new Error(response.error || 'Failed to get messages');
+      }
+      return response.data;
+    } catch {
       console.log('[MessageRepository] API not connected, using local data');
       let filtered = [...mockMessages];
       
@@ -40,9 +43,12 @@ export const messageRepository = {
     console.log('[MessageRepository] Getting message by ID:', messageId);
     
     try {
-      const response = await apiAdapter.get<Message>(`/messages/${messageId}`);
-      return response;
-    } catch (error) {
+      const response = await databaseAdapter.get<Message>(`/messages/${messageId}`);
+      if (response.error || !response.data) {
+        throw new Error(response.error || 'Message not found');
+      }
+      return response.data;
+    } catch {
       console.log('[MessageRepository] API not connected, using local data');
       return mockMessages.find(m => m.id === messageId) || null;
     }
@@ -52,11 +58,12 @@ export const messageRepository = {
     console.log('[MessageRepository] Getting threads for user:', userId);
     
     try {
-      const response = await apiAdapter.get<MessageThread[]>('/messages/threads', {
-        params: { userId },
-      });
-      return response;
-    } catch (error) {
+      const response = await databaseAdapter.get<MessageThread[]>('/messages/threads', { userId });
+      if (response.error || !response.data) {
+        throw new Error(response.error || 'Failed to get threads');
+      }
+      return response.data;
+    } catch {
       console.log('[MessageRepository] API not connected, using local data');
       return mockThreads.filter(t => t.participants.includes(userId));
     }
@@ -84,13 +91,16 @@ export const messageRepository = {
         : 'text';
 
     try {
-      const response = await apiAdapter.post<Message>('/messages', {
+      const response = await databaseAdapter.post<Message>('/messages', {
         ...payload,
         messageType,
         attachments,
       });
-      return response;
-    } catch (error) {
+      if (response.error || !response.data) {
+        throw new Error(response.error || 'Failed to create message');
+      }
+      return response.data;
+    } catch {
       console.log('[MessageRepository] API not connected, creating locally');
       
       const newMessage: Message = {
@@ -118,9 +128,12 @@ export const messageRepository = {
     console.log('[MessageRepository] Updating message:', payload);
     
     try {
-      const response = await apiAdapter.put<Message>(`/messages/${payload.id}`, payload);
-      return response;
-    } catch (error) {
+      const response = await databaseAdapter.put<Message>(`/messages/${payload.id}`, payload);
+      if (response.error || !response.data) {
+        throw new Error(response.error || 'Failed to update message');
+      }
+      return response.data;
+    } catch {
       console.log('[MessageRepository] API not connected, updating locally');
       
       const index = mockMessages.findIndex(m => m.id === payload.id);
@@ -142,8 +155,11 @@ export const messageRepository = {
     console.log('[MessageRepository] Deleting message:', messageId);
     
     try {
-      await apiAdapter.delete(`/messages/${messageId}`);
-    } catch (error) {
+      const response = await databaseAdapter.delete(`/messages/${messageId}`);
+      if (response.error) {
+        throw new Error(response.error);
+      }
+    } catch {
       console.log('[MessageRepository] API not connected, deleting locally');
       mockMessages = mockMessages.filter(m => m.id !== messageId);
     }
@@ -153,8 +169,11 @@ export const messageRepository = {
     console.log('[MessageRepository] Marking message as read:', messageId);
     
     try {
-      await apiAdapter.put(`/messages/${messageId}/read`, { userId });
-    } catch (error) {
+      const response = await databaseAdapter.put(`/messages/${messageId}/read`, { userId });
+      if (response.error) {
+        throw new Error(response.error);
+      }
+    } catch {
       console.log('[MessageRepository] API not connected, updating locally');
       
       const message = mockMessages.find(m => m.id === messageId);
@@ -169,11 +188,12 @@ export const messageRepository = {
     console.log('[MessageRepository] Getting unread count for user:', userId);
     
     try {
-      const response = await apiAdapter.get<{ count: number }>('/messages/unread-count', {
-        params: { userId, ...params },
-      });
-      return response.count;
-    } catch (error) {
+      const response = await databaseAdapter.get<{ count: number }>('/messages/unread-count', { userId, ...params });
+      if (response.error || !response.data) {
+        throw new Error(response.error || 'Failed to get unread count');
+      }
+      return response.data.count;
+    } catch {
       console.log('[MessageRepository] API not connected, counting locally');
       
       let filtered = mockMessages.filter(m => !m.readBy.includes(userId));
@@ -193,8 +213,11 @@ export const messageRepository = {
     console.log('[MessageRepository] Deleting attachment:', attachmentId);
     
     try {
-      await apiAdapter.delete(`/attachments/${attachmentId}`);
-    } catch (error) {
+      const response = await databaseAdapter.delete(`/attachments/${attachmentId}`);
+      if (response.error) {
+        throw new Error(response.error);
+      }
+    } catch {
       console.log('[MessageRepository] API not connected, deleting locally');
       
       mockMessages = mockMessages.map(m => ({

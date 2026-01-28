@@ -150,6 +150,7 @@ export function UserFormModal({
       pages: 'Page Access',
       actions: 'Action Permissions',
       data: 'Data Access',
+      messaging: 'Messaging',
     };
     return labels[category];
   };

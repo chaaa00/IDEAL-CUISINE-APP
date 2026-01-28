@@ -19,11 +19,9 @@ import {
   Table,
   Archive,
   File,
-  Eye,
   Trash2,
 } from 'lucide-react-native';
 import { useMutation } from '@tanstack/react-query';
-import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { fileService } from '@/services/fileService';
 import {
@@ -64,7 +62,7 @@ export function FileAttachmentView({
       } else {
         try {
           await Linking.openURL(url);
-        } catch (error) {
+        } catch {
           Alert.alert(t('common.error'), t('messaging.cannotOpenFile'));
         }
       }
@@ -93,13 +91,15 @@ export function FileAttachmentView({
     }
   }, [compact]);
 
+  const { mutate: download } = downloadMutation;
+
   const handleDownload = useCallback(() => {
     if (!canView) {
       Alert.alert(t('common.error'), t('messaging.noViewPermission'));
       return;
     }
-    downloadMutation.mutate();
-  }, [canView, downloadMutation, t]);
+    download();
+  }, [canView, download, t]);
 
   const handleDelete = useCallback(() => {
     if (!canDelete) return;

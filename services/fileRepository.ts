@@ -1,4 +1,4 @@
-import { apiAdapter } from './api/adapter';
+import databaseAdapter from './api/adapter';
 import {
   FileAttachment,
   FileUploadProgress,
@@ -44,16 +44,18 @@ export const fileRepository = {
         type: payload.mimeType,
       } as unknown as Blob);
       
-      const response = await apiAdapter.post<FileAttachment>('/files/upload', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const response = await databaseAdapter.post<FileAttachment>('/files/upload', formData);
+      
+      if (response.error || !response.data) {
+        throw new Error(response.error || 'Upload failed');
+      }
       
       if (onProgress) {
         onProgress({ fileId, progress: 100, status: 'completed' });
       }
       
-      return response;
-    } catch (error) {
+      return response.data;
+    } catch {
       console.log('[FileRepository] API not connected, simulating upload');
       
       for (let i = 0; i <= 100; i += 20) {
@@ -95,19 +97,23 @@ export const fileRepository = {
     }
     
     try {
-      const response = await apiAdapter.get<{ downloadUrl: string }>(`/files/${fileId}/download`);
+      const response = await databaseAdapter.get<{ downloadUrl: string }>(`/files/${fileId}/download`);
+      
+      if (response.error || !response.data) {
+        throw new Error(response.error || 'Download failed');
+      }
       
       if (onProgress) {
         onProgress({ 
           fileId, 
           progress: 100, 
           status: 'completed',
-          localPath: response.downloadUrl,
+          localPath: response.data.downloadUrl,
         });
       }
       
-      return response.downloadUrl;
-    } catch (error) {
+      return response.data.downloadUrl;
+    } catch {
       console.log('[FileRepository] API not connected, simulating download');
       
       for (let i = 0; i <= 100; i += 25) {
@@ -143,8 +149,11 @@ export const fileRepository = {
     console.log('[FileRepository] Deleting file:', fileId);
     
     try {
-      await apiAdapter.delete(`/files/${fileId}`);
-    } catch (error) {
+      const response = await databaseAdapter.delete(`/files/${fileId}`);
+      if (response.error) {
+        throw new Error(response.error);
+      }
+    } catch {
       console.log('[FileRepository] API not connected, deleting locally');
       mockFiles = mockFiles.filter(f => f.id !== fileId);
     }
@@ -154,9 +163,12 @@ export const fileRepository = {
     console.log('[FileRepository] Getting file metadata:', fileId);
     
     try {
-      const response = await apiAdapter.get<FileAttachment>(`/files/${fileId}`);
-      return response;
-    } catch (error) {
+      const response = await databaseAdapter.get<FileAttachment>(`/files/${fileId}`);
+      if (response.error || !response.data) {
+        throw new Error(response.error || 'File not found');
+      }
+      return response.data;
+    } catch {
       console.log('[FileRepository] API not connected, using local data');
       return mockFiles.find(f => f.id === fileId) || null;
     }
@@ -166,9 +178,12 @@ export const fileRepository = {
     console.log('[FileRepository] Getting files for message:', messageId);
     
     try {
-      const response = await apiAdapter.get<FileAttachment[]>(`/messages/${messageId}/files`);
-      return response;
-    } catch (error) {
+      const response = await databaseAdapter.get<FileAttachment[]>(`/messages/${messageId}/files`);
+      if (response.error || !response.data) {
+        throw new Error(response.error || 'Files not found');
+      }
+      return response.data;
+    } catch {
       console.log('[FileRepository] API not connected, using local data');
       return mockFiles.filter(f => f.messageId === messageId);
     }
