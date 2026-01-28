@@ -88,6 +88,13 @@ export class AuthService {
   hasPermission(user: User | null, permission: string): boolean {
     if (!user) return false;
     
+    // Check user's explicit permissions first
+    const userPermissions = user.permissions?.map(p => p.id) || [];
+    if (userPermissions.includes(permission)) {
+      return true;
+    }
+    
+    // Fall back to role-based permissions
     const rolePermissions = ROLE_PERMISSIONS[user.role] || [];
     return rolePermissions.includes(permission);
   }

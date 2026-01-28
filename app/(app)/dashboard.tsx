@@ -591,7 +591,7 @@ export default function DashboardScreen() {
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, isRTL && styles.textRTL]}>{t('dashboard.management')}</Text>
 
-            <PermissionGate permission="manage_employees">
+            <PermissionGate permission="create_users">
               <MenuItem
                 icon={<Users size={24} color="#000" />}
                 title={t('menu.staff')}

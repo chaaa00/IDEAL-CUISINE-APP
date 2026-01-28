@@ -546,8 +546,8 @@ const styles = StyleSheet.create({
     padding: 6,
   },
   daysGridRTL: {
-    flexDirection: 'row-reverse',
-    flexWrap: 'wrap-reverse',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
   },
   dayCell: {
     width: DAY_SIZE,
