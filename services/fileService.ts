@@ -7,9 +7,22 @@ import {
   isFileSizeValid,
   isMimeTypeAllowed,
   MAX_FILE_SIZE_MB,
+  ALLOWED_MIME_TYPES,
 } from '@/types/message';
 
 export const fileService = {
+  cancelUpload(fileId: string): boolean {
+    console.log('[FileService] Cancelling upload:', fileId);
+    return fileRepository.cancelUpload(fileId);
+  },
+
+  getUploadStatus(): { active: number; queued: number } {
+    return {
+      active: fileRepository.getActiveUploadsCount(),
+      queued: fileRepository.getQueuedUploadsCount(),
+    };
+  },
+
   async uploadFile(
     payload: CreateFileAttachmentPayload,
     userId: string,
@@ -57,9 +70,30 @@ export const fileService = {
     }
     
     if (!isMimeTypeAllowed(mimeType)) {
-      return { valid: false, error: 'File type not supported' };
+      return { 
+        valid: false, 
+        error: `File type not supported. Allowed: images, PDF, Word, Excel, ZIP` 
+      };
+    }
+    
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.scr', '.js', '.vbs', '.ps1'];
+    const extension = fileName.toLowerCase().substring(fileName.lastIndexOf('.'));
+    if (dangerousExtensions.includes(extension)) {
+      return { valid: false, error: 'This file type is not allowed for security reasons' };
     }
     
     return { valid: true };
+  },
+
+  validateFileAccess(userId: string, fileUploaderId: string, hasViewPermission: boolean): boolean {
+    if (!hasViewPermission) {
+      console.log('[FileService] Access denied: user lacks view_files permission');
+      return false;
+    }
+    return true;
+  },
+
+  getSupportedFileTypes(): string[] {
+    return ALLOWED_MIME_TYPES;
   },
 };

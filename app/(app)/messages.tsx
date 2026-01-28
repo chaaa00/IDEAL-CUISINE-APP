@@ -23,7 +23,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { PermissionGate } from '@/components/PermissionGate';
-import { FilePicker, PendingFilePreview, FileAttachmentView } from '@/components/FileAttachment';
+import { FilePicker, PendingFilePreview, FileAttachmentView, CancelableUpload } from '@/components/FileAttachment';
 import { messageService } from '@/services/messageService';
 import { fileService } from '@/services/fileService';
 import {
@@ -100,11 +100,22 @@ export default function MessagesScreen() {
       setPendingFiles([]);
       setUploadProgress({});
       
+      if (newMessage.attachments && newMessage.attachments.length > 0) {
+        addLocalNotification({
+          type: 'message_sent',
+          title: t('messaging.newFileReceived'),
+          message: `${newMessage.senderName} sent ${newMessage.attachments.length} file(s)`,
+          data: { messageId: newMessage.id, projectId, taskId },
+          recipientId: user?.id || '',
+        });
+      }
+      
       setTimeout(() => {
         flatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     },
     onError: (error: Error) => {
+      setUploadProgress({});
       Alert.alert(t('common.error'), error.message);
     },
   });
@@ -154,8 +165,20 @@ export default function MessagesScreen() {
   }, []);
 
   const handleRemoveFile = useCallback((index: number) => {
+    const progressKey = `pending_${index}`;
+    const progress = uploadProgress[progressKey];
+    
+    if (progress?.status === 'uploading' && progress.fileId) {
+      fileService.cancelUpload(progress.fileId);
+    }
+    
     setPendingFiles(prev => prev.filter((_, i) => i !== index));
-  }, []);
+    setUploadProgress(prev => {
+      const updated = { ...prev };
+      delete updated[progressKey];
+      return updated;
+    });
+  }, [uploadProgress]);
 
   const handleDeleteMessage = useCallback((messageId: string) => {
     Alert.alert(

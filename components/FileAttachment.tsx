@@ -299,15 +299,13 @@ export function PendingFilePreview({ file, onRemove, uploadProgress }: PendingFi
         )}
       </View>
       
-      {!isUploading && (
-        <TouchableOpacity
-          style={styles.removeButton}
-          onPress={onRemove}
-          activeOpacity={0.7}
-        >
-          <X size={16} color="#666" />
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        style={isUploading ? styles.cancelButton : styles.removeButton}
+        onPress={onRemove}
+        activeOpacity={0.7}
+      >
+        <X size={16} color={isUploading ? '#E53935' : '#666'} />
+      </TouchableOpacity>
     </View>
   );
 }
@@ -426,6 +424,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  cancelButton: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFE5E5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   rowRTL: {
     flexDirection: 'row-reverse' as const,
   },
@@ -433,3 +439,7 @@ const styles = StyleSheet.create({
     textAlign: 'right' as const,
   },
 });
+
+export function CancelableUpload() {
+  return null;
+}

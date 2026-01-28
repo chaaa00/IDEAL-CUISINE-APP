@@ -12,9 +12,53 @@ import {
 
 const generateId = (): string => `file_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+const MAX_CONCURRENT_UPLOADS = 3;
+const MAX_RETRY_ATTEMPTS = 3;
+const RETRY_DELAY_MS = 1000;
+
+let activeUploads = 0;
+const uploadQueue: Array<() => Promise<void>> = [];
+const abortControllers = new Map<string, AbortController>();
+
 let mockFiles: FileAttachment[] = [];
 
+const processUploadQueue = async () => {
+  while (uploadQueue.length > 0 && activeUploads < MAX_CONCURRENT_UPLOADS) {
+    const nextUpload = uploadQueue.shift();
+    if (nextUpload) {
+      activeUploads++;
+      try {
+        await nextUpload();
+      } finally {
+        activeUploads--;
+        processUploadQueue();
+      }
+    }
+  }
+};
+
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const fileRepository = {
+  cancelUpload(fileId: string): boolean {
+    const controller = abortControllers.get(fileId);
+    if (controller) {
+      console.log('[FileRepository] Cancelling upload:', fileId);
+      controller.abort();
+      abortControllers.delete(fileId);
+      return true;
+    }
+    return false;
+  },
+
+  getActiveUploadsCount(): number {
+    return activeUploads;
+  },
+
+  getQueuedUploadsCount(): number {
+    return uploadQueue.length;
+  },
+
   async uploadFile(
     payload: CreateFileAttachmentPayload,
     userId: string,
@@ -31,58 +75,123 @@ export const fileRepository = {
     }
     
     const fileId = generateId();
+    const abortController = new AbortController();
+    abortControllers.set(fileId, abortController);
     
     if (onProgress) {
-      onProgress({ fileId, progress: 0, status: 'uploading' });
+      onProgress({ fileId, progress: 0, status: 'pending' });
     }
-    
-    try {
-      const formData = new FormData();
-      formData.append('file', {
-        uri: payload.fileUri,
-        name: payload.fileName,
-        type: payload.mimeType,
-      } as unknown as Blob);
-      
-      const response = await databaseAdapter.post<FileAttachment>('/files/upload', formData);
-      
-      if (response.error || !response.data) {
-        throw new Error(response.error || 'Upload failed');
+
+    const executeUpload = async (attempt: number = 1): Promise<FileAttachment> => {
+      if (abortController.signal.aborted) {
+        throw new Error('Upload cancelled');
       }
-      
+
       if (onProgress) {
-        onProgress({ fileId, progress: 100, status: 'completed' });
+        onProgress({ fileId, progress: 0, status: 'uploading' });
       }
       
-      return response.data;
-    } catch {
-      console.log('[FileRepository] API not connected, simulating upload');
-      
-      for (let i = 0; i <= 100; i += 20) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        if (onProgress) {
-          onProgress({ 
-            fileId, 
-            progress: i, 
-            status: i < 100 ? 'uploading' : 'completed' 
-          });
+      try {
+        const formData = new FormData();
+        formData.append('file', {
+          uri: payload.fileUri,
+          name: payload.fileName,
+          type: payload.mimeType,
+        } as unknown as Blob);
+        
+        const response = await databaseAdapter.post<FileAttachment>('/files/upload', formData);
+        
+        if (response.error || !response.data) {
+          throw new Error(response.error || 'Upload failed');
         }
+        
+        if (onProgress) {
+          onProgress({ fileId, progress: 100, status: 'completed' });
+        }
+        
+        abortControllers.delete(fileId);
+        return response.data;
+      } catch (error) {
+        if (abortController.signal.aborted) {
+          throw new Error('Upload cancelled');
+        }
+
+        const isNetworkError = error instanceof Error && 
+          (error.message.includes('network') || error.message.includes('timeout') || error.message.includes('fetch'));
+        
+        if (isNetworkError && attempt < MAX_RETRY_ATTEMPTS) {
+          console.log(`[FileRepository] Upload failed, retrying (${attempt}/${MAX_RETRY_ATTEMPTS})...`);
+          if (onProgress) {
+            onProgress({ 
+              fileId, 
+              progress: 0, 
+              status: 'uploading',
+              error: `Retrying (${attempt}/${MAX_RETRY_ATTEMPTS})...`
+            });
+          }
+          await delay(RETRY_DELAY_MS * attempt);
+          return executeUpload(attempt + 1);
+        }
+        
+        console.log('[FileRepository] API not connected, simulating upload');
+        
+        for (let i = 0; i <= 100; i += 20) {
+          if (abortController.signal.aborted) {
+            throw new Error('Upload cancelled');
+          }
+          await delay(100);
+          if (onProgress) {
+            onProgress({ 
+              fileId, 
+              progress: i, 
+              status: i < 100 ? 'uploading' : 'completed' 
+            });
+          }
+        }
+        
+        const newFile: FileAttachment = {
+          id: fileId,
+          messageId: '',
+          fileName: payload.fileName,
+          fileType: payload.fileType || getFileTypeFromMime(payload.mimeType),
+          mimeType: payload.mimeType,
+          fileSize: payload.fileSize,
+          fileUrl: payload.fileUri,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: userId,
+        };
+        
+        mockFiles.push(newFile);
+        abortControllers.delete(fileId);
+        return newFile;
+      }
+    };
+
+    if (activeUploads >= MAX_CONCURRENT_UPLOADS) {
+      console.log('[FileRepository] Upload queued, waiting for slot...');
+      if (onProgress) {
+        onProgress({ fileId, progress: 0, status: 'pending', error: 'Queued' });
       }
       
-      const newFile: FileAttachment = {
-        id: fileId,
-        messageId: '',
-        fileName: payload.fileName,
-        fileType: payload.fileType || getFileTypeFromMime(payload.mimeType),
-        mimeType: payload.mimeType,
-        fileSize: payload.fileSize,
-        fileUrl: payload.fileUri,
-        uploadedAt: new Date().toISOString(),
-        uploadedBy: userId,
-      };
-      
-      mockFiles.push(newFile);
-      return newFile;
+      return new Promise((resolve, reject) => {
+        uploadQueue.push(async () => {
+          try {
+            const result = await executeUpload();
+            resolve(result);
+          } catch (err) {
+            reject(err);
+          }
+        });
+        processUploadQueue();
+      });
+    }
+
+    activeUploads++;
+    try {
+      return await executeUpload();
+    } finally {
+      activeUploads--;
+      processUploadQueue();
     }
   },
 
